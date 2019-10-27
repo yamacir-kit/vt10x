@@ -1,12 +1,14 @@
 #include <algorithm>
+#include <cerrno>
+#include <cstdint> // std::uint32_t
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <cstdint> // std::uint32_t
 
 #include <boost/iterator/iterator_facade.hpp>
 
@@ -18,11 +20,6 @@
 #else
 #define PRINT(NAME, ...)
 #endif // NDEBUG
-
-std::size_t row {24}, column {80};
-
-const auto* font {"Monospace:pixelsize=14:antialias=true:autohint=true"};
-const auto* name {"vt10x-256color"};
 
 struct shared_connection
   : public std::shared_ptr<xcb_connection_t>
@@ -50,8 +47,6 @@ struct shared_connection
     case XCB_CONN_CLOSED_INVALID_SCREEN:
       throw std::runtime_error {"the server does not have a screen matching the display"};
     }
-
-    std::cerr << "; connection\t; established" << std::endl;
   }
 
   operator xcb_connection_t*() const noexcept
@@ -61,7 +56,6 @@ struct shared_connection
 
   decltype(auto) flush() const noexcept
   {
-    std::cerr << "; connection\t; flushed" << std::endl;
     return xcb_flush(*this);
   }
 };
@@ -213,32 +207,26 @@ struct identity
       0, // window attributes
       nullptr
     );
-
-    std::cerr << "; identity\t; generated" << std::endl;
   }
 
   ~identity()
   {
     xcb_destroy_window(connection, value);
-    std::cerr << "; identity\t; destructed " << this << std::endl;
   }
 
   decltype(auto) map() const noexcept
   {
-    std::cerr << "; identity\t; mapping" << std::endl;
     return xcb_map_window(connection, value);
   }
 
   decltype(auto) unmap() const
   {
-    std::cerr << "; identity\t; unmapping" << std::endl;
     return xcb_unmap_window(connection, value);
   }
 
   template <typename... Ts>
   decltype(auto) configure(const std::uint16_t mask, Ts&&... configurations) const
   {
-    std::cerr << "; identity\t; configuring " << mask << std::endl;
     const std::vector<std::uint32_t> values {std::forward<decltype(configurations)>(configurations)...};
     return xcb_configure_window(connection, value, mask, values.data());
   }
@@ -246,7 +234,6 @@ struct identity
   template <typename Mask, typename... Ts>
   decltype(auto) change_attributes(const Mask& mask, Ts&&... attributes) const
   {
-    std::cerr << "; identity\t; changing attributes " << mask << std::endl;
     const std::vector<std::uint32_t> values {std::forward<decltype(attributes)>(attributes)...};
     return xcb_change_window_attributes(connection, value, mask, values.data());
   }
@@ -424,32 +411,32 @@ struct machine
 
 constexpr std::uint32_t event_mask
 {
-    XCB_EVENT_MASK_NO_EVENT
-  // | XCB_EVENT_MASK_KEY_PRESS
-  // | XCB_EVENT_MASK_KEY_RELEASE
-  // | XCB_EVENT_MASK_BUTTON_PRESS
-  // | XCB_EVENT_MASK_BUTTON_RELEASE
-  // | XCB_EVENT_MASK_ENTER_WINDOW
-  // | XCB_EVENT_MASK_LEAVE_WINDOW
-  // | XCB_EVENT_MASK_POINTER_MOTION
-  // | XCB_EVENT_MASK_POINTER_MOTION_HINT
-  // | XCB_EVENT_MASK_BUTTON_1_MOTION
-  // | XCB_EVENT_MASK_BUTTON_2_MOTION
-  // | XCB_EVENT_MASK_BUTTON_3_MOTION
-  // | XCB_EVENT_MASK_BUTTON_4_MOTION
-  // | XCB_EVENT_MASK_BUTTON_5_MOTION
-  // | XCB_EVENT_MASK_BUTTON_MOTION
-  // | XCB_EVENT_MASK_KEYMAP_STATE
-  | XCB_EVENT_MASK_EXPOSURE
-  // | XCB_EVENT_MASK_VISIBILITY_CHANGE
-  | XCB_EVENT_MASK_STRUCTURE_NOTIFY
-  // | XCB_EVENT_MASK_RESIZE_REDIRECT
-  // | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY
-  // | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT
-  // | XCB_EVENT_MASK_FOCUS_CHANGE
-  // | XCB_EVENT_MASK_PROPERTY_CHANGE
-  // | XCB_EVENT_MASK_COLOR_MAP_CHANGE
-  // | XCB_EVENT_MASK_OWNER_GRAB_BUTTON
+  XCB_EVENT_MASK_NO_EVENT              * 1 |
+  XCB_EVENT_MASK_KEY_PRESS             * 0 |
+  XCB_EVENT_MASK_KEY_RELEASE           * 0 |
+  XCB_EVENT_MASK_BUTTON_PRESS          * 0 |
+  XCB_EVENT_MASK_BUTTON_RELEASE        * 0 |
+  XCB_EVENT_MASK_ENTER_WINDOW          * 0 |
+  XCB_EVENT_MASK_LEAVE_WINDOW          * 0 |
+  XCB_EVENT_MASK_POINTER_MOTION        * 0 |
+  XCB_EVENT_MASK_POINTER_MOTION_HINT   * 0 |
+  XCB_EVENT_MASK_BUTTON_1_MOTION       * 0 |
+  XCB_EVENT_MASK_BUTTON_2_MOTION       * 0 |
+  XCB_EVENT_MASK_BUTTON_3_MOTION       * 0 |
+  XCB_EVENT_MASK_BUTTON_4_MOTION       * 0 |
+  XCB_EVENT_MASK_BUTTON_5_MOTION       * 0 |
+  XCB_EVENT_MASK_BUTTON_MOTION         * 0 |
+  XCB_EVENT_MASK_KEYMAP_STATE          * 0 |
+  XCB_EVENT_MASK_EXPOSURE              * 1 |
+  XCB_EVENT_MASK_VISIBILITY_CHANGE     * 0 |
+  XCB_EVENT_MASK_STRUCTURE_NOTIFY      * 1 |
+  XCB_EVENT_MASK_RESIZE_REDIRECT       * 0 |
+  XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY   * 0 |
+  XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT * 0 |
+  XCB_EVENT_MASK_FOCUS_CHANGE          * 0 |
+  XCB_EVENT_MASK_PROPERTY_CHANGE       * 0 |
+  XCB_EVENT_MASK_COLOR_MAP_CHANGE      * 0 |
+  XCB_EVENT_MASK_OWNER_GRAB_BUTTON     * 0
 };
 
 struct surface
@@ -500,15 +487,30 @@ struct surface
   }
 };
 
+// struct cursor
+// {
+//   std::size_t row, column;
+// };
+//
+// struct screen
+// {
+// };
+
+std::size_t row {24}, column {80};
+
+const auto* font {"Monospace:pixelsize=14:antialias=true:autohint=true"};
+const auto* name {"vt10x-256color"};
+
 int main(const int argc, char const* const* const argv)
 {
   const std::vector<std::string> args {argv + 1, argv + argc};
 
   surface main {};
-  main.map();
 
   main.configure(XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, 1280u, 720u);
   main.size(1280, 720);
+
+  main.map();
   main.flush();
 
   main.execute();
