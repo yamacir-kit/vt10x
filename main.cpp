@@ -104,8 +104,8 @@ namespace xcb
     {}                                                                         \
   };
 
-  #define XCB_TRAVERSER(NAME, ITERATOR, TARGET)                                \
-  struct NAME##_traverser                                                      \
+  #define XCB_PROTOCOL(NAME, ITERATOR, TARGET)                                 \
+  struct NAME##s                                                               \
   {                                                                            \
     XCB_ITERATOR(ITERATOR)                                                     \
                                                                                \
@@ -113,7 +113,7 @@ namespace xcb
                                                                                \
     const xcb_##NAME##_t* data;                                                \
                                                                                \
-    explicit NAME##_traverser(const xcb_##NAME##_t* data)                      \
+    explicit NAME##s(const xcb_##NAME##_t* data)                               \
       : data {data}                                                            \
     {}                                                                         \
                                                                                \
@@ -155,23 +155,23 @@ namespace xcb
     }                                                                          \
   };
 
-  XCB_TRAVERSER(setup, screen, roots)
-  XCB_TRAVERSER(screen, depth, allowed_depths)
-  XCB_TRAVERSER(depth, visualtype, visuals)
+  XCB_PROTOCOL(setup, screen, roots)
+  XCB_PROTOCOL(screen, depth, allowed_depths)
+  XCB_PROTOCOL(depth, visualtype, visuals)
 
   auto root_screen(const shared_connection& connection)
   {
-    return std::begin(setup_traverser {xcb_get_setup(connection)})->root;
+    return std::begin(setups {xcb_get_setup(connection)})->root;
   }
 
   // XXX cairo_xcb_surface_create requires non-const xcb_visualtype_t*
   auto root_visual(const shared_connection& connection)
   {
-    for (const auto& screen : setup_traverser {xcb_get_setup(connection)})
+    for (const auto& screen : setups {xcb_get_setup(connection)})
     {
-      for (const auto& depth : screen_traverser {&screen})
+      for (const auto& depth : screens {&screen})
       {
-        for (auto&& visual : depth_traverser {&depth})
+        for (auto&& visual : depths {&depth})
         {
           if (screen.root_visual == visual.visual_id)
           {
