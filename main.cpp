@@ -10,10 +10,14 @@
 #include <utility>
 #include <vector>
 
+#include <termios.h>
+#include <unistd.h>
+
 #include <boost/iterator/iterator_facade.hpp>
 
-#include <xcb/xcb.h>
 #include <cairo/cairo-xcb.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 
 #ifndef NDEBUG
 #define PRINT(NAME, ...) std::cerr << #NAME __VA_ARGS__ << std::endl;
@@ -410,6 +414,93 @@ namespace xcb
       }
     }
   };
+
+  template <typename Char>
+  class keyboard
+  {
+    std::unique_ptr<xcb_key_symbols_t, decltype(&xcb_key_symbols_free)> symbols;
+
+  public:
+    explicit keyboard(const shared_connection& connection)
+      : symbols {xcb_key_symbols_alloc(connection), xcb_key_symbols_free}
+    {}
+
+    auto press(const std::unique_ptr<xcb_key_press_event_t> event)
+    {
+      auto code {xcb_key_press_lookup_keysym(
+        symbols.get(),
+        event.get(),
+        event->state & ~XCB_MOD_MASK_CONTROL
+      )};
+
+      if (xcb_is_modifier_key(code))
+      {
+        return false;
+      }
+
+      switch (event->state)
+      {
+      case XCB_MOD_MASK_CONTROL:
+      case XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT:
+        switch (code)
+        {
+        #define DEBUG_KEYCODE(CODE, ...) \
+        std::cerr << "; keybord\t; caret " #CODE " - " __VA_ARGS__ << std::endl;
+
+        case '@': DEBUG_KEYCODE(0x00, "null")                      break;
+        case 'A': DEBUG_KEYCODE(0x01, "start-of-heading")          break;
+        case 'B': DEBUG_KEYCODE(0x02, "start-of-text")             break;
+        case 'C': DEBUG_KEYCODE(0x03, "end-of-text")               break;
+        case 'D': DEBUG_KEYCODE(0x04, "end-of-transmission")       break;
+        case 'E': DEBUG_KEYCODE(0x05, "enquiry")                   break;
+        case 'F': DEBUG_KEYCODE(0x06, "acknowledgement")           break;
+        case 'G': DEBUG_KEYCODE(0x07, "bell")                      break;
+        case 'H': DEBUG_KEYCODE(0x08, "backspace")                 break;
+        case 'I': DEBUG_KEYCODE(0x09, "hrizontal-tab")             break;
+        case 'J': DEBUG_KEYCODE(0x0A, "line-feed")                 break;
+        case 'K': DEBUG_KEYCODE(0x0B, "vertical-tab")              break;
+        case 'L': DEBUG_KEYCODE(0x0C, "form-feed")                 break;
+        case 'M': DEBUG_KEYCODE(0x0D, "carriage-return")           break;
+        case 'N': DEBUG_KEYCODE(0x0E, "shift-out")                 break;
+        case 'O': DEBUG_KEYCODE(0x0F, "shift-in")                  break;
+        case 'P': DEBUG_KEYCODE(0x10, "data-link-escape")          break;
+        case 'Q': DEBUG_KEYCODE(0x11, "device-control-1")          break;
+        case 'R': DEBUG_KEYCODE(0x12, "device-control-2")          break;
+        case 'S': DEBUG_KEYCODE(0x13, "device-control-3")          break;
+        case 'T': DEBUG_KEYCODE(0x14, "device-control-4")          break;
+        case 'U': DEBUG_KEYCODE(0x15, "negative-acknowledgement")  break;
+        case 'V': DEBUG_KEYCODE(0x16, "synchronous-idle")          break;
+        case 'W': DEBUG_KEYCODE(0x17, "end-of-transmission-block") break;
+        case 'X': DEBUG_KEYCODE(0x18, "cancel")                    break;
+        case 'Y': DEBUG_KEYCODE(0x19, "end-of-medium")             break;
+        case 'Z': DEBUG_KEYCODE(0x1A, "substitute")                break;
+        case '[': DEBUG_KEYCODE(0x1B, "escape")                    break;
+        case '\\': DEBUG_KEYCODE(0x1C, "file-separator")           break;
+        case ']': DEBUG_KEYCODE(0x1D, "group-separator")           break;
+        case '^': DEBUG_KEYCODE(0x1E, "record-separator")          break;
+        case '_': DEBUG_KEYCODE(0x1F, "unit-separator")            break;
+        case '?': DEBUG_KEYCODE(0x7F, "delete")                    break;
+        case '2': DEBUG_KEYCODE(0x00, "null")                      break;
+        case '3': DEBUG_KEYCODE(0x1B, "escape")                    break;
+        case '4': DEBUG_KEYCODE(0x1C, "file-separator")            break;
+        case '5': DEBUG_KEYCODE(0x1D, "group-separator")           break;
+        case '6': DEBUG_KEYCODE(0x1E, "record-separator")          break;
+        case '7': DEBUG_KEYCODE(0x1F, "unit-separator")            break;
+        case '8': DEBUG_KEYCODE(0x7F, "delete")                    break;
+        }
+        break;
+
+      default:
+        if (0x1F < code && code < 0x7F)
+        {
+          std::cerr << "; keyboard\t; ascii " << code << std::endl;
+          return true;
+        }
+      }
+
+      return false;
+    }
+  };
 } // namespace xcb
 
 namespace cairo
@@ -417,7 +508,7 @@ namespace cairo
   constexpr std::uint32_t event_mask
   {
     XCB_EVENT_MASK_NO_EVENT              * 1 |
-    XCB_EVENT_MASK_KEY_PRESS             * 0 |
+    XCB_EVENT_MASK_KEY_PRESS             * 1 |
     XCB_EVENT_MASK_KEY_RELEASE           * 0 |
     XCB_EVENT_MASK_BUTTON_PRESS          * 0 |
     XCB_EVENT_MASK_BUTTON_RELEASE        * 0 |
@@ -485,6 +576,12 @@ namespace cairo
     // void operator()(const std::unique_ptr<xcb_expose_event_t> event)
     // {
     // }
+
+    void operator()(std::unique_ptr<xcb_key_press_event_t>&& event)
+    {
+      static xcb::keyboard<char> keyboard {connection};
+      keyboard.press(std::move(event));
+    }
 
     void operator()(const std::unique_ptr<xcb_configure_notify_event_t> event)
     {
